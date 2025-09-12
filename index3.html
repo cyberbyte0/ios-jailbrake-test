@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Jailbreak App Tester</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    button {
+      display: block;
+      margin: 15px auto;
+      padding: 12px 20px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      background-color: #007AFF;
+      color: white;
+      cursor: pointer;
+      width: 200px;
+      transition: background 0.2s ease;
+    }
+    button:hover {
+      background-color: #0051A8;
+    }
+  </style>
+</head>
+<body>
+  <h1>Jailbreak App Tester</h1>
+  <p>Tap a button — it will open in this tab. If nothing happens, you’ll be redirected back automatically.</p>
+
+  <button onclick="tryOpen('cydia://')">Test Cydia</button>
+  <button onclick="tryOpen('sileo://')">Test Sileo</button>
+  <button onclick="tryOpen('zbra://')">Test Zebra</button>
+  <button onclick="tryOpen('installer://')">Test Installer</button>
+
+  <script>
+    function tryOpen(url) {
+      // Save current page URL so we can return
+      const returnUrl = window.location.href;
+      const start = Date.now();
+
+      // Open scheme (replace to avoid history issues)
+      window.location.replace(url);
+
+      // After 2 seconds, if still here (failed to open), redirect back manually
+      setTimeout(() => {
+        const elapsed = Date.now() - start;
+        if (elapsed < 2500) {
+          window.location.replace(returnUrl); // Go back to our test page safely
+        }
+      }, 2000);
+    }
+  </script>
+</body>
+</html>

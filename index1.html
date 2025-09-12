@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>iOS Jailbreak Quick Check — Advanced</title>
+<link rel="stylesheet" href="">
+<style>
+  :root{
+    --bg:#0f1724;
+    --card:#0b1220;
+    --muted:#94a3b8;
+    --accent1:#0a84ff;
+    --accent2:#7c3aed;
+    --ok:#34c759;
+    --bad:#ff3b30;
+    --glass: rgba(255,255,255,0.03);
+  }
+  html,body{height:100%;margin:0;font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  body{
+    background: linear-gradient(180deg,#071028 0%, #07122b 60%);
+    color:#e6eef8;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .wrap{max-width:720px;width:100%}
+  .card{
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:16px;
+    padding:18px;
+    box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+    backdrop-filter: blur(6px);
+    margin-bottom:14px;
+  }
+  h1{margin:0 0 6px;font-size:20px}
+  p.lead{margin:6px 0 0;color:var(--muted);font-size:13px}
+  .controls{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  button, .btn {
+    border:0;padding:12px 14px;border-radius:12px;font-weight:600;cursor:pointer;
+    background:linear-gradient(90deg,var(--accent1),var(--accent2)); color:white; box-shadow:0 6px 18px rgba(10,132,255,0.08);
+  }
+  .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
+  .output{margin-top:14px;font-size:14px;line-height:1.4;color:#dbeafe}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{padding:6px 10px;border-radius:999px;background:var(--glass);color:var(--muted);font-size:13px}
+  ul.reasons{margin:8px 0 0;padding-left:18px;color:#ffdce6}
+  .ok{color:var(--ok)}
+  .warn{color:#f59e0b}
+  .bad{color:var(--bad)}
+  .small{font-size:12px;color:var(--muted)}
+  footer.small{margin-top:8px;color:var(--muted);font-size:12px;text-align:center}
+  a.link{color:#9ed0ff;text-decoration:underline}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>🔎 iOS Jailbreak Quick Check — Advanced</h1>
+      <p class="lead">Tap the buttons below. The page uses multiple user-gesture probes and heuristics (URL schemes, visibility, user agent, new-tab forcing) to increase detection success. Results are heuristic — not definitive.</p>
+
+      <div style="margin-top:12px" class="row">
+        <span class="chip" id="deviceLabel">Detecting platform…</span>
+        <span class="chip" id="uaLabel"></span>
+        <span class="chip" id="envLabel"></span>
+      </div>
+
+      <div class="controls">
+        <button id="runInApp">Run In-Page Checks</button>
+        <button class="btn secondary" id="openNewTab">Force Open In New Tab (stronger)</button>
+        <button class="btn secondary" id="clearBtn">Clear</button>
+      </div>
+
+      <div class="output" id="output">
+        <div class="small">Notes: <em>In-page checks</em> try to use iframes + visibilitychange heuristics. <em>New tab</em> attempts use window.open('_blank') — Safari will prompt or switch apps if a scheme is handled.</div>
+      </div>
+
+      <div style="margin-top:12px" id="detailArea"></div>
+      <footer class="small">Remember — for a reliable result use a native app (TestFlight / AltStore) or connect to a computer.</footer>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const output = document.getElementById('output');
+  const detail = document.getElementById('detailArea');
+  const runBtn = document.getElementById('runInApp');
+  const forceBtn = document.getElementById('openNewTab');
+  const clearBtn = document.getElementById('clearBtn');
+  const deviceLabel = document.getElementById('deviceLabel');
+  const uaLabel = document.getElementById('uaLabel');
+  const envLabel = document.getElementById('envLabel');
+
+  // list of schemes to probe
+  const SCHEMES = [
+    {name:'Cydia', scheme:'cydia://'},
+    {name:'Sileo', scheme:'sileo://'},
+    {name:'Zebra', scheme:'zbra://'},
+    {name:'Installer', scheme:'installer://'}
+  ];
+
+  // detect iOS
+  const ua = navigator.userAgent || '';
+  const isiOS = /iPhone|iPad|iPod/i.test(ua);
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS/.test(ua);
+  const isStandalone = window.navigator.standalone === true;
+  deviceLabel.textContent = isiOS ? 'Platform: iOS' : 'Platform: non-iOS';
+  uaLabel.textContent = 'UA: ' + (ua.split(')')[0] || ua).slice(0, 60);
+  envLabel.textContent = isSafari ? 'Browser: Safari' : 'Browser: WebView/Other';
+
+  // helper to log
+  function log(msg, cls) {
+    const d = document.createElement('div');
+    d.innerHTML = msg;
+    if (cls) d.className = cls;
+    output.prepend(d);
+  }
+
+  // helper: run iframe probe with visibility heuristic
+  function probeIframe(scheme, timeout = 1400) {
+    return new Promise(resolve => {
+      let handled = false;
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+
+      function onVis() {
+        if (document.hidden) {
+          handled = true;
+          cleanup();
+          resolve({handled:true, reason:'visibilitychange'});
+        }
+      }
+
+      function cleanup() {
+        document.removeEventListener('visibilitychange', onVis);
+        try { document.body.removeChild(iframe); } catch(e){}
+        clearTimeout(timer);
+      }
+
+      document.addEventListener('visibilitychange', onVis);
+      // append iframe and set src - user-gesture required to call from click handler
+      iframe.src = scheme;
+      document.body.appendChild(iframe);
+
+      const timer = setTimeout(()=> {
+        if (!handled) {
+          cleanup();
+          resolve({handled:false, reason:'timeout'});
+        }
+      }, timeout);
+    });
+  }
+
+  // helper: open in new tab and detect pagehide/visibility
+  function openInNewTab(scheme, timeout = 1700) {
+    return new Promise(resolve => {
+      let newWin = null;
+      let handled = false;
+      const startHidden = document.hidden;
+
+      function onVisibility() {
+        // If page becomes hidden soon after open -> likely external app or new tab took focus
+        if (document.hidden && !startHidden) {
+          handled = true;
+          cleanup();
+          resolve({handled:true, reason:'visibilitychange'});
+        }
+      }
+
+      function cleanup() {
+        window.removeEventListener('visibilitychange', onVisibility);
+        clearTimeout(timer);
+        // attempt to close window if it was opened to a scheme (some browsers open and return)
+        try { if (newWin && !newWin.closed) newWin.close(); } catch(e){}
+      }
+
+      window.addEventListener('visibilitychange', onVisibility);
+
+      try {
+        // user-gesture required
+        newWin = window.open(scheme, '_blank');
+      } catch (e) {
+        // popup blocked - treat as not handled
+      }
+
+      const timer = setTimeout(()=> {
+        if (!handled) {
+          cleanup();
+          resolve({handled:false, reason:'timeout'});
+        }
+      }, timeout);
+    });
+  }
+
+  // small additional heuristics (UA tokens)
+  function uaHeuristics() {
+    const lower = ua.toLowerCase();
+    const tokens = ['substrate','cydia','palera1n','libhooker','tweaks','jailbreak'];
+    return tokens.filter(t => lower.includes(t));
+  }
+
+  // Run in-page checks (iframe method)
+  runBtn.addEventListener('click', async () => {
+    output.innerHTML = '';
+    detail.innerHTML = '';
+    if (!isiOS) {
+      log('<div class="small">This check is intended for Safari on iPhone/iPad. Open the page on an iOS device for best results.</div>');
+      return;
+    }
+
+    log('<b>Running in-page iframe checks (tap allowed)</b>');
+    let detected = [];
+    for (const s of SCHEMES) {
+      log(`<div class="small">Probing scheme <code>${s.scheme}</code> for ${s.name}…</div>`);
+      // slight delay to allow UI to update
+      await new Promise(r => setTimeout(r, 120));
+      const res = await probeIframe(s.scheme, 1400);
+      if (res.handled) {
+        log(`<div class="bad"><b>${s.name}</b> likely installed (visibility change).</div>`);
+        detected.push(s.name);
+      } else {
+        log(`<div class="small">${s.name}: no response (not definitive)</div>`);
+      }
+      await new Promise(r => setTimeout(r, 160));
+    }
+
+    // UA heuristics
+    const uaHits = uaHeuristics();
+    if (uaHits.length) {
+      log(`<div class="warn">UserAgent tokens: ${uaHits.join(', ')}</div>`);
+    } else {
+      log(`<div class="small">UserAgent tokens: none</div>`);
+    }
+
+    // risk score
+    const score = Math.min(100, detected.length * 30 + (uaHits.length ? 10 : 0));
+    const reasons = [...detected, ...(uaHits.length ? ['UserAgent tokens'] : [])];
+    if (score > 0) {
+      detail.innerHTML = `<div class="card" style="margin-top:10px;padding:12px"><div class="bad"><strong>Risk Score: ${score}/100</strong></div>
+        <ul class="reasons">${reasons.map(r => `<li>${r}</li>`).join('')}</ul></div>`;
+    } else {
+      detail.innerHTML = `<div class="card" style="margin-top:10px;padding:12px"><div class="ok"><strong>Risk Score: 0/100 — no strong indicators found</strong></div></div>`;
+    }
+  });
+
+  // Force open in new tab (stronger probe). This will actually attempt to open each scheme _in a new tab/window_
+  forceBtn.addEventListener('click', async () => {
+    output.innerHTML = '';
+    detail.innerHTML = '';
+    if (!isiOS) {
+      log('<div class="small">This action is only useful on iOS Safari.</div>');
+      return;
+    }
+
+    log('<b>Attempting strong probe (opens each scheme in a new tab/window). After each prompt, return to this page to continue.</b>');
+    let detected = [];
+    for (const s of SCHEMES) {
+      log(`<div class="small">Opening <code>${s.scheme}</code> in new tab — allow the prompt or app switch, then return here.</div>`);
+      await new Promise(r => setTimeout(r, 120));
+      const res = await openInNewTab(s.scheme, 1800);
+      if (res.handled) {
+        log(`<div class="bad"><b>${s.name}</b> likely installed (page focus changed).</div>`);
+        detected.push(s.name);
+      } else {
+        log(`<div class="small">${s.name}: no response (not definitive)</div>`);
+      }
+      await new Promise(r => setTimeout(r, 260));
+    }
+
+    const uaHits = uaHeuristics();
+    const score = Math.min(100, detected.length * 30 + (uaHits.length ? 10 : 0));
+    const reasons = [...detected, ...(uaHits.length ? ['UserAgent tokens'] : [])];
+    if (score > 0) {
+      detail.innerHTML = `<div class="card" style="margin-top:10px;padding:12px"><div class="bad"><strong>Risk Score: ${score}/100</strong></div>
+        <ul class="reasons">${reasons.map(r => `<li>${r}</li>`).join('')}</ul></div>`;
+    } else {
+      detail.innerHTML = `<div class="card" style="margin-top:10px;padding:12px"><div class="ok"><strong>Risk Score: 0/100 — no strong indicators found</strong></div></div>`;
+    }
+  });
+
+  clearBtn.addEventListener('click', ()=> { output.innerHTML=''; detail.innerHTML=''; });
+
+})();
+</script>
+</body>
+</html>
