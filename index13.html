@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>iOS Jailbreak / Sideload Detector — Web</title>
+  <style>
+    :root {
+      --bg1: #f0f4f8; --bg2: #e6eef8; --card: #fff; --accent: #007aff;
+      --good: #2ecc71; --warn: #ff9f43; --muted: #98a0a6; --danger: #ff3b30;
+    }
+    html, body { height: 100%; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial; }
+    body {
+      background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+    }
+    .container {
+      width: 100%; max-width: 860px; background: var(--card); border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(15,30,50,0.12); padding: 20px; overflow: auto;
+      max-height: 92vh;
+    }
+    .header { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 56px; height: 56px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), #1b79ff);
+      display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px;
+    }
+    h1 { margin: 0; font-size: 1.15rem; }
+    .row { display: flex; gap: 12px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+    .col { flex: 1; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    button {
+      background: var(--accent); color: #fff; padding: 10px 14px; border-radius: 10px; border: 0; font-weight: 600;
+      box-shadow: 0 6px 14px rgba(0,122,255,0.12); cursor: pointer;
+    }
+    button.secondary { background: #6b7280; }
+    .small { font-size: 0.9rem; padding: 8px 12px; border-radius: 8px; }
+    .progress-wrap { margin-top: 14px; }
+    .progress-bar {
+      height: 14px; background: #e9eef6; border-radius: 12px; overflow: hidden; position: relative;
+    }
+    .progress-bar > i { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #1b79ff); transition: width 420ms ease; }
+    .spinner { display: inline-block; width: 28px; height: 28px; border-radius: 50%; border: 3px solid rgba(0,0,0,0.08); border-top: 3px solid var(--accent); animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .test-list { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .test {
+      background: linear-gradient(180deg, #fff, #fbfdff); border-radius: 12px; padding: 12px; border: 1px solid #eef3fb;
+      min-height: 64px; display: flex; flex-direction: column; justify-content: center;
+    }
+    .test .title { font-weight: 700; margin-bottom: 6px; }
+    .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+    .status-neutral { background: var(--muted); }
+    .status-ok { background: var(--good); }
+    .status-bad { background: var(--danger); }
+
+    .log {
+      margin-top: 16px; background: #0f1724; color: #cbd5e1; padding: 12px; border-radius: 10px; font-family: Menlo, monospace; font-size: 0.85rem;
+      max-height: 180px; overflow: auto;
+    }
+
+    .footer-note { margin-top: 12px; color: #475569; font-size: 0.9rem; }
+    .score {
+      margin-left: auto; font-size: 1.05rem; padding: 8px 10px; border-radius: 10px; background: #0b1220; color: #fff; font-weight: 800;
+    }
+    a.source { color: var(--accent); text-decoration: none; font-weight: 600; }
+    @media (max-width: 520px) { .test-list { grid-template-columns: 1fr; } .row { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">JB</div>
+      <div>
+        <h1>iOS Jailbreak / Sideload Detector — Web</h1>
+        <div style="color:#546173;font-size:0.92rem">Soft checks first • intrusive app-scheme checks last • runs on iPhone/iPad Safari</div>
+      </div>
+      <div class="score" id="riskScore">—</div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="progress-wrap">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <div style="font-weight:700">Overall progress</div>
+            <div style="color:#6b7280;font-size:0.9rem"> (soft → intrusive)</div>
+          </div>
+          <div class="progress-bar"><i id="overallProgress"></i></div>
+        </div>
+      </div>
+      <div style="width:12px"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="miniSpinner" style="display:none" class="spinner"></div>
+        <button id="btnRunAll">Test All</button>
+        <button id="btnRunSoft" class="secondary small">Soft only</button>
+      </div>
+    </div>
+
+    <h3 style="margin-top:18px">Soft checks (informational)</h3>
+    <div class="test-list" id="softList"></div>
+
+    <h3 style="margin-top:18px">App / scheme checks (run last)</h3>
+    <div class="test-list" id="intrusiveList"></div>
+
+    <div class="log" id="logArea" aria-live="polite" role="status"></div>
+
+    <div class="footer-note">
+      <strong>Notes:</strong> Positive detections (package manager / file manager opened) are strong evidence of sideload/jailbreak. Absence of detections doesn't guarantee a clean device — stealth tools may hide traces. Native Safari dialogs cannot be read or closed by JavaScript.
+      <div style="margin-top:8px">Warning: Some jailbreaks (e.g., Dopamine with "Hide Jailbreak" enabled) may hide schemes and traces, leading to false negatives. Check screen recordings for app icons or manual probes.</div>
+      <div style="margin-top:8px">Sources for URL-schemes used: <a class="source" href="#" onclick="window.open('https://git.saurik.com/cydia.git', '_blank')">Cydia</a>, <a class="source" href="#" onclick="window.open('https://developer.getsileo.app', '_blank')">Sileo</a>, <a class="source" href="#" onclick="window.open('https://github.com/zbrateam/Zebra', '_blank')">Zebra</a>, <a class="source" href="#" onclick="window.open('https://tigisoftware.com', '_blank')">Filza</a>, <a class="source" href="#" onclick="window.open('https://noah978.gitbook.io/altstore-docs/url-schemes', '_blank')">AltStore</a>, <a class="source" href="#" onclick="window.open('https://github.com/sohsatoh/ReProvision-Reborn', '_blank')">ReProvision</a>, <a class="source" href="#" onclick="window.open('https://github.com/opa334/TrollStore', '_blank')">TrollStore</a></div>
+    </div>
+  </div>
+
+  <script>
+    // Helper: Detect iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    // Soft tests configuration
+    const softTests = [
+      { id: 'ua', title: 'User-Agent & build', fn: checkUserAgent },
+      { id: 'standalone', title: 'navigator.standalone / display-mode', fn: checkStandalone },
+      { id: 'storage', title: 'Storage API (navigator.storage.estimate)', fn: checkStorageAPI },
+      { id: 'indexeddb', title: 'IndexedDB write test', fn: checkIndexedDB },
+      { id: 'localstorage', title: 'localStorage write test', fn: checkLocalStorage },
+      { id: 'webcrypto', title: 'WebCrypto SHA-256 timing', fn: checkWebCrypto },
+      { id: 'perf', title: 'Performance micro-benchmark', fn: checkPerf },
+      { id: 'devmode', title: 'Developer Mode Status', fn: checkDeveloperMode }
+    ];
+
+    // Intrusive checks configuration
+    const intrusiveChecks = [
+      { id: 'cydia', label: 'Cydia', scheme: 'cydia://', source: 'Cydia: scheme docs & references' },
+      { id: 'sileo', label: 'Sileo', scheme: 'sileo://', source: 'Sileo dev docs' },
+      { id: 'zebra', label: 'Zebra', scheme: 'zbra://', source: 'Zebra project/issue notes' },
+      { id: 'filza', label: 'Filza', scheme: 'filza://view/', source: 'Filza docs' },
+      { id: 'altstore', label: 'AltStore', scheme: 'altstore://source?url=', source: 'AltStore docs' },
+      { id: 'reprovision', label: 'ReProvision', scheme: 'reprovision://install?url=', source: 'ReProvision Readme' },
+      { id: 'unc0ver', label: 'unc0ver', scheme: 'unc0ver://', source: 'unc0ver docs' },
+      { id: 'dopamine', label: 'Dopamine', scheme: 'dopamine://', source: 'Dopamine GitHub repo' }
+    ];
+
+    // DOM elements
+    const elements = {
+      softList: document.getElementById('softList'),
+      intrusiveList: document.getElementById('intrusiveList'),
+      logArea: document.getElementById('logArea'),
+      overallProgress: document.getElementById('overallProgress'),
+      riskScore: document.getElementById('riskScore'),
+      miniSpinner: document.getElementById('miniSpinner'),
+      btnRunAll: document.getElementById('btnRunAll'),
+      btnRunSoft: document.getElementById('btnRunSoft')
+    };
+
+    let strongDetected = 0;
+    let strongTotal = intrusiveChecks.length;
+
+    // Logging helper
+    function log(msg) {
+      const t = new Date().toLocaleTimeString();
+      elements.logArea.innerText = `[${t}] ${msg}\n` + elements.logArea.innerText;
+    }
+
+    // Build UI tiles for tests
+    function buildTestTiles() {
+      softTests.forEach(t => {
+        const el = document.createElement('div');
+        el.className = 'test';
+        el.id = 'soft-' + t.id;
+        el.innerHTML = `<div class="title">${t.title}</div><div class="sub" id="${t.id}-sub" style="color:var(--muted)">pending</div>`;
+        elements.softList.appendChild(el);
+      });
+      intrusiveChecks.forEach(t => {
+        const el = document.createElement('div');
+        el.className = 'test';
+        el.id = 'intr-' + t.id;
+        el.innerHTML = `<div class="title">${t.label}</div><div style="display:flex;align-items:center;justify-content:space-between">
+          <div id="${t.id}-status" style="color:var(--muted)">waiting</div>
+          <div id="${t.id}-dot" class="status-dot status-neutral"></div>
+        </div>`;
+        elements.intrusiveList.appendChild(el);
+      });
+    }
+
+    // UI update helpers
+    function setSoftStatus(id, text, state) {
+      const el = document.getElementById(id + '-sub');
+      el.innerText = text;
+      const parent = document.getElementById('soft-' + id);
+      parent.style.borderColor = state === 'ok' ? '#e6fbef' : state === 'warn' ? '#fff4e6' : '#eef3fb';
+    }
+
+    function setIntrusiveStatus(id, text, detected) {
+      const statusEl = document.getElementById(id + '-status');
+      statusEl.innerText = text;
+      const dot = document.getElementById(id + '-dot');
+      dot.className = 'status-dot ' + (detected ? 'status-ok' : 'status-neutral');
+    }
+
+    function setOverallPercent(p) {
+      elements.overallProgress.style.width = (p || 0) + '%';
+    }
+
+    // Soft check implementations
+    async function checkUserAgent() {
+      try {
+        const ua = navigator.userAgent || navigator.vendor || 'unknown';
+        const m = ua.match(/OS ([0-9_]+) like Mac OS X/);
+        const iosVer = m ? m[1].replace(/_/g, '.') : 'unknown';
+        setSoftStatus('ua', `UA: ${ua}\nDetected iOS: ${iosVer}`, 'ok');
+        log(`User-Agent: ${ua}`);
+        return { ok: true, info: { ua, iosVer } };
+      } catch (e) {
+        setSoftStatus('ua', `Error: ${e.message}`, 'warn');
+        return { ok: false };
+      }
+    }
+
+    async function checkStandalone() {
+      try {
+        const stand = !!navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        setSoftStatus('standalone', `navigator.standalone = ${!!navigator.standalone}; display-mode standalone = ${stand}`, 'ok');
+        return { ok: true, info: { standalone: stand } };
+      } catch (e) {
+        setSoftStatus('standalone', `Error: ${e.message}`, 'warn');
+        return { ok: false };
+      }
+    }
+
+    async function checkStorageAPI() {
+      try {
+        if (!navigator.storage || !navigator.storage.estimate) {
+          setSoftStatus('storage', `navigator.storage.estimate not available`, 'warn');
+          return { ok: false };
+        }
+        const est = await navigator.storage.estimate();
+        setSoftStatus('storage', `storage.estimate OK — quota: ${Math.round((est.quota || 0) / 1024 / 1024)} MB`, 'ok');
+        return { ok: true, info: est };
+      } catch (e) {
+        setSoftStatus('storage', `Error: ${e.message}`, 'warn');
+        return { ok: false };
+      }
+    }
+
+    async function checkIndexedDB() {
+      if (!window.indexedDB) {
+        setSoftStatus('indexeddb', 'IndexedDB unsupported', 'warn');
+        return { ok: false };
+      }
+      try {
+        const db = await new Promise((res, rej) => {
+          const r = indexedDB.open('jbcheck-db', 1);
+          r.onupgradeneeded = ev => {
+            try {
+              const db = ev.target.result;
+              if (!db.objectStoreNames.contains('store')) db.createObjectStore('store', { keyPath: 'id' });
+            } catch (e) { rej(e); }
+          };
+          r.onsuccess = ev => res(ev.target.result);
+          r.onerror = ev => rej(ev.target.error);
+        });
+        const tx = db.transaction('store', 'readwrite');
+        const store = tx.objectStore('store');
+        await new Promise((res, rej) => {
+          const req = store.put({ id: 'test', value: Date.now() });
+          req.onsuccess = () => res(true);
+          req.onerror = () => rej(req.error);
+        });
+        tx.oncomplete = () => { db.close(); indexedDB.deleteDatabase('jbcheck-db'); };
+        setSoftStatus('indexeddb', 'IndexedDB write/read OK', 'ok');
+        return { ok: true };
+      } catch (e) {
+        setSoftStatus('indexeddb', `Error: ${e.message}`, 'warn');
+        return { ok: false };
+      }
+    }
+
+    async function checkLocalStorage() {
+      try {
+        localStorage.setItem('__jb_test', Date.now());
+        localStorage.removeItem('__jb_test');
+        setSoftStatus('localstorage', 'localStorage OK', 'ok');
+        return { ok: true };
+      } catch (e) {
+        setSoftStatus('localstorage', `Error: ${e.message} (possibly quota exceeded)`, 'warn');
+        return { ok: false };
+      }
+    }
+
+    async function checkWebCrypto() {
+      try {
+        if (!window.crypto || !crypto.subtle) {
+          setSoftStatus('webcrypto', 'WebCrypto/subtle missing', 'warn');
+          return { ok: false };
+        }
+        const input = new TextEncoder().encode('jailbreak-detect-payload-' + Date.now());
+        const t0 = performance.now();
+        await crypto.subtle.digest('SHA-256', input);
+        const t1 = performance.now();
+        setSoftStatus('webcrypto', `SHA-256 OK — ${Math.round(t1 - t0)} ms`, 'ok');
+        return { ok: true, time: Math.round(t1 - t0) };
+      } catch (e) {
+        setSoftStatus('webcrypto', `Error: ${e.message}`, 'warn');
+        return { ok: false };
+      }
+    }
+
+    async function checkPerf() {
+      try {
+        const iters = 60000;
+        const t0 = performance.now();
+        let x = 0;
+        for (let i = 0; i < iters; i++) { x += (i * 13) % 7; }
+        const t1 = performance.now();
+        setSoftStatus('perf', `Loop ${iters} ops — ${Math.round(t1 - t0)} ms`, 'ok');
+        return { ok: true, time: Math.round(t1 - t0) };
+      } catch (e) {
+        setSoftStatus('perf', `Error: ${e.message}`, 'warn');
+        return { ok: false };
+      }
+    }
+
+    async function checkDeveloperMode() {
+      try {
+        const isRestricted = !navigator.storage || !crypto.subtle;
+        setSoftStatus('devmode', isRestricted ? 'Possible Developer Mode or restrictions detected' : 'No obvious restrictions', isRestricted ? 'warn' : 'ok');
+        return { ok: true, restricted: isRestricted };
+      } catch (e) {
+        setSoftStatus('devmode', `Error: ${e.message}`, 'warn');
+        return { ok: false };
+      }
+    }
+
+    // Intrusive scheme tester
+    function testSchemeViaVisibility(scheme, timeoutMs = 1500) {
+      return new Promise(resolve => {
+        if (!isIOS || document.visibilityState === 'hidden') { resolve(false); return; }
+        let resolved = false;
+        const onVis = () => {
+          if (document.visibilityState === 'hidden') {
+            cleanup();
+            resolved = true;
+            resolve(true);
+          }
+        };
+        const timer = setTimeout(() => {
+          if (!resolved) { cleanup(); resolve(false); }
+        }, timeoutMs);
+
+        function cleanup() {
+          clearTimeout(timer);
+          document.removeEventListener('visibilitychange', onVis);
+          if (anchor && anchor.parentNode) anchor.parentNode.removeChild(anchor);
+        }
+
+        document.addEventListener('visibilitychange', onVis);
+
+        const anchor = document.createElement('a');
+        anchor.href = scheme;
+        anchor.target = '_self';
+        anchor.style.display = 'none';
+        document.body.appendChild(anchor);
+
+        setTimeout(() => {
+          try { anchor.click(); } catch (e) { resolve(false); }
+        }, 20);
+      });
+    }
+
+    // Run soft checks
+    async function runSoftChecks(updatePctCallback) {
+      for (let i = 0; i < softTests.length; i++) {
+        try {
+          await softTests[i].fn();
+        } catch (e) {
+          setSoftStatus(softTests[i].id, `Error: ${e.message}`, 'warn');
+        }
+        const pct = Math.round(((i + 1) / softTests.length) * 30);
+        updatePctCallback(pct);
+        await new Promise(r => setTimeout(r, 220));
+      }
+    }
+
+    // Run intrusive checks
+    async function runIntrusiveChecks(updatePctCallback) {
+      strongDetected = 0;
+      let filzaDetected = false;
+      for (let i = 0; i < intrusiveChecks.length; i++) {
+        const t = intrusiveChecks[i];
+        setIntrusiveStatus(t.id, 'checking… (popup may appear)', false);
+        try {
+          const opened = await testSchemeViaVisibility(t.scheme, 1400);
+          if (opened) {
+            setIntrusiveStatus(t.id, 'detected (opened)', true);
+            strongDetected++;
+            log(`Detected ${t.label} via scheme ${t.scheme}`);
+            if (t.id === 'filza') filzaDetected = true;
+          } else {
+            setIntrusiveStatus(t.id, 'no response', false);
+            log(`No response for ${t.label} (${t.scheme})`);
+          }
+        } catch (e) {
+          setIntrusiveStatus(t.id, `Error: ${e.message}`, false);
+          log(`Error testing ${t.label}: ${e.message}`);
+        }
+        const pct = 30 + Math.round(((i + 1) / intrusiveChecks.length) * 70);
+        updatePctCallback(pct);
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      if (filzaDetected) {
+        log('Filza detected; probing for Dopamine files...');
+        const dopaminePath = 'filza://view//var/jb/Applications/Dopamine.app';
+        try {
+          const opened = await testSchemeViaVisibility(dopaminePath, 1400);
+          if (opened) {
+            strongDetected++;
+            log('Dopamine detected via Filza path probe');
+            setIntrusiveStatus('dopamine', 'detected via Filza probe', true);
+          } else {
+            log('No Dopamine files found via Filza');
+          }
+        } catch (e) {
+          log(`Error probing Dopamine: ${e.message}`);
+        }
+      }
+    }
+
+    // Compute risk score
+    function computeRiskScore() {
+      if (strongTotal === 0) return 0;
+      return Math.round((strongDetected / strongTotal) * 100);
+    }
+
+    // Debounce helper to prevent rapid clicks
+    function debounce(fn, delay = 300) {
+      let timeout;
+      return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn(...args), delay);
+      };
+    }
+
+    // Full test runner
+    async function runAll() {
+      if (!isIOS) { alert('This page is intended for iPhone / iPad Safari only.'); return; }
+      elements.btnRunAll.disabled = true;
+      elements.btnRunSoft.disabled = true;
+      elements.miniSpinner.style.display = 'inline-block';
+      try {
+        log('Starting full test (soft → intrusive)');
+        setOverallPercent(0);
+        await runSoftChecks(setOverallPercent);
+        await new Promise(r => setTimeout(r, 300));
+        await runIntrusiveChecks(setOverallPercent);
+        const finalScore = computeRiskScore();
+        elements.riskScore.innerText = finalScore + '%';
+        log(`Strong detections: ${strongDetected} / ${strongTotal} → risk ${finalScore}%`);
+        setTimeout(() => alert('Test run completed — check results and logs'), 150);
+      } catch (e) {
+        log(`Error during full test: ${e.message}`);
+        alert('An error occurred during the test. Check logs.');
+      } finally {
+        elements.miniSpinner.style.display = 'none';
+        elements.btnRunAll.disabled = false;
+        elements.btnRunSoft.disabled = false;
+      }
+    }
+
+    // Soft-only runner
+    async function runSoftOnly() {
+      if (!isIOS) { alert('This page is intended for iPhone / iPad Safari only.'); return; }
+      elements.btnRunAll.disabled = true;
+      elements.btnRunSoft.disabled = true;
+      elements.miniSpinner.style.display = 'inline-block';
+      try {
+        log('Starting soft-only tests');
+        setOverallPercent(0);
+        await runSoftChecks(setOverallPercent);
+        alert('Soft tests completed — see results and logs');
+      } catch (e) {
+        log(`Error during soft tests: ${e.message}`);
+        alert('An error occurred during the test. Check logs.');
+      } finally {
+        elements.miniSpinner.style.display = 'none';
+        elements.btnRunAll.disabled = false;
+        elements.btnRunSoft.disabled = false;
+      }
+    }
+
+    // Initialization
+    buildTestTiles();
+    elements.btnRunAll.addEventListener('click', debounce(runAll));
+    elements.btnRunSoft.addEventListener('click', debounce(runSoftOnly));
+
+    if (!isIOS) {
+      log('Not iPhone/iPad detected — this page is optimized for Safari on iOS.');
+    }
+
+    log('Detector loaded. Ready.');
+  </script>
+</body>
+</html>
