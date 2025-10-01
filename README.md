@@ -18,7 +18,7 @@ This is a lightweight, web-based tool (implemented in `index13.html`) designed t
 - **No Guarantees**: Absence of detections does not confirm a clean device; advanced evasion techniques can bypass it.
 
 ## Basic Usage Instructions
-1. Open `index13.html` in Safari on an iPhone or iPad.
+1. Open `test.html` in Safari on an iPhone or iPad.
 2. Click **Test All** to run both soft and intrusive checks, or **Soft only** for non-intrusive tests.
 3. Monitor the progress bar, test tiles, and log area for results.
 4. Review the risk score (percentage) and notes for interpretation.
