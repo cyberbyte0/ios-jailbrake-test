@@ -1,7 +1,7 @@
 # iOS Jailbreak / Sideload Detector (Web-based)
 
 ## Description
-This is a lightweight, web-based tool (implemented in `index13.html`) designed to detect signs of jailbreaking or sideloading on iOS devices. It runs directly in Safari and uses a combination of non-intrusive browser checks and URL scheme probes to identify potential modifications without requiring app installation.
+This is a lightweight, web-based tool (implemented in `index.html`) designed to detect signs of jailbreaking or sideloading on iOS devices. It runs directly in Safari and uses a combination of non-intrusive browser checks and URL scheme probes to identify potential modifications without requiring app installation.
 
 ## Key Features and Advantages
 - **Multi-Layer Detection**: Performs soft (informational) checks on browser APIs (e.g., User-Agent, storage, performance) and intrusive URL scheme tests for known tools like Cydia, Sileo, and Dopamine.
@@ -18,7 +18,7 @@ This is a lightweight, web-based tool (implemented in `index13.html`) designed t
 - **No Guarantees**: Absence of detections does not confirm a clean device; advanced evasion techniques can bypass it.
 
 ## Basic Usage Instructions
-1. Open `test.html` in Safari on an iPhone or iPad.
+1. Open `index.html` in Safari on an iPhone or iPad.
 2. Click **Test All** to run both soft and intrusive checks, or **Soft only** for non-intrusive tests.
 3. Monitor the progress bar, test tiles, and log area for results.
 4. Review the risk score (percentage) and notes for interpretation.
